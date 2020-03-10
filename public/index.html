@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<link rel="stylesheet" href="/css/style.css">
+	<link rel="stylesheet", href="/css/melodia.css">
+</head>
+<body>
+	<div class="upfile-wraper">
+		<input id="up-file" type="file">
+		<button id="up-file-button">Send</button>
+	</div>
+	
+	<div class="recorder-wraper">
+		<div id="recorder">
+			<div class="btn-panel">
+				<div class="rec-panel">
+					<button id="init-recorder" style="background:green;">
+						<b>RECORDER</b>
+					</button>
+				</div>
+				<button id="rec-recorder" style="background:gray;float:left" disabled><b>record</b></button>
+				<button id="stop-recorder" style="background:gray;" disabled><b>stop</b></button>
+			</div>
+		</div>
+	</div>
+	
+	<div class="loader-wraper">
+		<img id="loader" height="100%" src="/images/loader.gif" style="display:none;">
+	</div>
+	
+	<div class="again-wraper">
+		<button id="again-button" style="background:gray;" disabled>
+			<b>Again if necessary</b>
+		</button>
+	</div>
+	
+	<h2>Recording</h2>
+	<div id="recordings-list"></div>
+	<div class="look-for-wraper">
+		<button id="look-for-button" style="background:gray;" disabled>
+			<b>Look for</b>
+		</button>
+	</div>
+	<div class="music-name-wrap" style="clear:left;">
+		<div><b>Name and Author</b></div>
+		<input id="music-name" type="text" style="border:1px solid blue;" size="60" value="">
+	</div>
+	
+	<div class="for-library-wrap">
+		<button id="for-library-button" style="background:gray;" disabled>
+			<b>For library</b>
+		</button>
+	</div>
+	
+	<h2>Log</h2>
+	<pre id="log"></pre>
+
+<script src="/vendor/recorder.js"></script>
+<script>
+var initRecorder = document.getElementById('init-recorder');
+var recordingsList = document.getElementById('recordings-list');
+var recRecorder = document.getElementById('rec-recorder');
+var stopRecorder = document.getElementById('stop-recorder');
+var loader = document.getElementById('loader');
+var againButton = document.getElementById('again-button');
+var upFileButton = document.getElementById('up-file-button');
+var upFile = document.getElementById('up-file');
+var lookForButton = document.getElementById('look-for-button');
+var forLibraryButton = document.getElementById('for-library-button');
+var musicName = document.getElementById('music-name');
+
+function __log(e, data) {
+	log.innerHTML += "\n" + e + " " + (data || '');
+}
+
+function buttonsManag(button, color, disabl) {
+	button.style.background = color;
+	button.disabled = disabl;
+}
+
+upFileButton.onclick = function() {
+	loader.style.display = 'block';
+	upFileButton.disabled = true;
+	upFile.disabled = true;
+	buttonsManag(againButton, 'green', false);
+	buttonsManag(lookForButton, 'red', false);
+	buttonsManag(forLibraryButton, 'red', false);
+	var file = upFile.files[0];
+
+	fetch('/melodia/post-wav', {
+			method: 'POST',
+			body: file
+		})
+		.then(response => response.text())
+		.then(fileName => {
+																								console.log(fileName);
+			loader.style.display = 'none';
+			var au = document.createElement('audio');
+			au.controls = true;
+			au.src = fileName;
+			recordingsList.appendChild(au);
+		})
+		.catch(err => console.log(err));
+};
+
+var audio_context;
+var recorder;
+
+function startUserMedia(stream) {
+	var input = audio_context.createMediaStreamSource(stream);
+	__log('Media stream created.');
+	
+	recorder = new Recorder(input);
+	__log('Recorder initialised.');
+	
+	recRecorder.onclick = function() {
+		recorder.record();
+		buttonsManag(recRecorder, 'gray', true);
+		buttonsManag(stopRecorder, 'blue', false);
+		__log('Recording...');
+	};
+	
+	stopRecorder.onclick = function() {
+		recorder.stop();
+		loader.style.display = 'block';
+		buttonsManag(stopRecorder, 'gray', true);
+		buttonsManag(againButton, 'green', false);
+		buttonsManag(lookForButton, 'red', false);
+		__log('Stopped recording.');
+		
+		recorder.exportWAV(function(blob) {
+			fetch('/melodia/post-wav', {
+				method: 'POST',
+				body: blob
+			})
+				.then( resp => resp.text())
+				.then( fileName => {
+					loader.style.display = 'none';
+					var au = document.createElement('audio');
+					au.controls = true;
+					au.src = fileName;
+					recordingsList.appendChild(au);
+				})
+				.catch(err => console.log(err));
+		});
+		recorder.clear();
+	};
+}
+
+againButton.onclick = function() {
+	buttonsManag(againButton, 'gray', true);
+	if(recordingsList.children[0]) {
+		var elem = recordingsList.children[0];
+		var src = elem.src;
+		var srcArr = src.split('/');
+		var fileN = srcArr[srcArr.length-1];
+
+		fetch('/melodia/before-again?str=' + fileN.split('.')[0])
+			.then( resp => {
+				//console.log(resp);
+				if(resp.ok) {
+					recordingsList.removeChild(elem);
+					if(initRecorder.disabled == true) {
+						buttonsManag(recRecorder, 'red', false);
+					}
+					buttonsManag(lookForButton, 'gray', true);
+					buttonsManag(forLibraryButton, 'gray', true);
+					upFileButton.disabled = false;
+					upFile.disabled = false;
+				}
+			})
+			.catch( err => console.log(err));
+	} else if(!recordingsList.children[0], initRecorder.disabled) {
+		upFileButton.disabled = false;
+		upFile.disabled = false;
+		buttonsManag(recRecorder, 'red', false);
+	} else {
+		upFileButton.disabled = false;
+		upFile.disabled = false;
+	}
+};
+
+lookForButton.onclick = function() {
+	buttonsManag(lookForButton, 'gray', true);
+	var elem = recordingsList.children[0];
+	var src = elem.src;
+	var srcArr = src.split('/');
+	var fileN = srcArr[srcArr.length-1];
+																console.log(fileN);
+	fetch('/melodia/look-for-melodia?filename=' + fileN.split('.')[0])
+		.then( resp => resp.text())
+		.then( text => {
+			__log(text);
+			recordingsList.removeChild(elem);
+		})
+		.catch( err => console.log(err));
+};
+
+forLibraryButton.onclick = function() {
+	buttonsManag(forLibraryButton, 'gray', true);
+	buttonsManag(lookForButton, 'gray', true);
+	var data = {};
+	var elem = recordingsList.children[0];
+	var src = elem.src;
+	var srcArr = src.split('/');
+	var fileN = srcArr[srcArr.length-1];
+	data.filename = fileN.split('.')[0];
+	data.musicdata = musicName.value;
+
+	fetch('/melodia/for-music-library', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json;charset=utf-8'
+		},
+		body: JSON.stringify(data)
+	})
+		.then( resp => resp.text())
+		.then( text => {
+			console.log(text);
+			recordingsList.removeChild(elem);
+		})
+		.catch( err => console.log(err));
+};
+
+initRecorder.onclick = function init() {
+	try {
+		// webkit shim
+		window.AudioContext = window.AudioContext || window.webkitAudioContext;
+		navigator.mediaDevices.getUserMedia = navigator.mediaDevices.getUserMedia
+														|| navigator.mediaDevices.mozGetUserMedia || navigator.mediaDevices.webkitGetUserMedia;
+		window.URL = window.URL || window.webkitURL;
+		
+		audio_context = new AudioContext;
+		__log('Audio context set up.');
+		__log('navigator.getUserMedia ' + (navigator.mediaDevices.getUserMedia ? 'available.' : 'not present!'));
+	} catch (e) {
+		alert('No web audio support in this browser!');
+	}
+
+	buttonsManag(initRecorder, 'gray', true);
+	buttonsManag(recRecorder, 'red', false);
+
+	navigator.mediaDevices.getUserMedia({audio: true}).then(startUserMedia).catch(function(e) {
+		__log('No live audio input: ' + e);
+	});
+};
+</script>
+
+</body>
+</html>

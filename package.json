@@ -1,0 +1,16 @@
+{
+  "name": "sound_project_moleculer",
+  "version": "1.0.0",
+  "description": "Sound project with microservices",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "YurPo",
+  "license": "ISC",
+  "dependencies": {
+    "moleculer": "^0.14.4",
+    "moleculer-web": "^0.9.1",
+    "synth-js": "^0.1.1"
+  }
+}
